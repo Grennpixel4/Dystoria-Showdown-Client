@@ -5,6 +5,7 @@ npm-debug.log
 package-lock.json
 /config/
 /vendor/
+/caches/
 
 
 /play.pokemonshowdown.com/sprites/
