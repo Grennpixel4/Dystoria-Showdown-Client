@@ -1,2 +1,2 @@
-const server_repo = "https://github.com/scoopapa/DH2.git";
+const server_repo = "https://github.com/Grennpixel4/Dystoria-Showdown-website.git";
 module.exports = server_repo;
