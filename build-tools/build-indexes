@@ -1870,10 +1870,20 @@ function buildText() {
 	for (const id in textData.Abilities) assignData(id, textData.Abilities[id]);
 	for (const id in textData.Items) assignData(id, textData.Items[id]);
 
-	// Stat names live in their own tables on the server, but the client's parser reads them
-	// off the same object as `StatNames` / `StatShortNames` (`BattleTextParser.stat`).
+	// Stat names live in their own tables on the server, but the client reads them in two ways:
+	// `BattleTextParser.stat()` reads `BattleText.StatNames` / `BattleText.StatShortNames`, and
+	// `BattleTooltips#renderStats()` reads `BattleText.atk.statShortName` etc. Emit both shapes,
+	// otherwise a pokemon tooltip throws `Cannot read properties of undefined (reading 'statShortName')`.
 	Text.StatNames = convertTextTree(textData.StatNames);
+	Text.StatMediumNames = convertTextTree(textData.StatMediumNames);
 	Text.StatShortNames = convertTextTree(textData.StatShortNames);
+	for (const stat of ['hp', 'atk', 'def', 'spa', 'spd', 'spe', 'spc', 'accuracy', 'evasion', 'stats']) {
+		const entry = Text[stat] || (Text[stat] = {});
+		const statName = textData.StatNames?.[stat] || textData.StatMediumNames?.[stat];
+		const statShortName = textData.StatShortNames?.[stat] || statName;
+		if (statName) entry.statName = statName;
+		if (statShortName) entry.statShortName = statShortName;
+	}
 
 	const buf = 'exports.BattleText = ' + es3stringify(Text) + ';';
 	fs.writeFileSync('play.pokemonshowdown.com/data/text.js', buf);
