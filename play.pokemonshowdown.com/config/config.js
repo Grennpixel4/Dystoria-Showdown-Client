@@ -18,12 +18,12 @@ Config.whitelist = [
 // `defaultserver` specifies the server to use when the domain name in the
 // address bar is `Config.routes.client`.
 Config.defaultserver = {
-	id: 'dragonheaven',
-	host: 'local',
-	port: 8000,
-	httpport: 8000,
-	altport: 80,
-	registered: true
+	id: 'dystoria',
+	host: 'karl-yes-yacht-essence.trycloudflare.com',
+	port: 443,
+	httpport: 443,
+	altport: 443,
+	registered: false
 };
 
 Config.roomsFirstOpenScript = function () {

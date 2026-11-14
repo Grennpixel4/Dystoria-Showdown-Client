@@ -53,9 +53,9 @@ child_process.execSync('npm run build', {cwd: 'caches/DH2'});
 
 console.log("DONE");
 
-const Dex = require('../caches/DH2/dist/sim/dex').Dex;
+const Dex = require('../caches/DH2/dist/sim/dex.js').Dex;
 const toID = Dex.toID;
-const ModConfigData = require('../config/mod-config').ModConfigData;
+const ModConfigData = require('../config/mod-config.js').ModConfigData;
 const ModConfig = ModConfigData.ClientMods;
 var Formats = require('../caches/DH2/dist/config/formats.js').Formats;
 var OfficialFormats = require('../caches/DH2/dist/config/official-formats.js').Formats;

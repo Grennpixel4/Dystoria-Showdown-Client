@@ -1512,7 +1512,12 @@ class Species implements Effect {
 		this.baseSpecies = data.baseSpecies || name;
 		this.forme = data.forme || '';
 		const baseId = toID(this.baseSpecies);
-		this.formeid = (baseId === this.id ? '' : '-' + toID(this.forme));
+		// Some custom entries (eg. Golduck-Dystorian) omit `forme`; derive it from "<Base>-<Forme>" so the sprite id is right.
+		let spriteForme = this.forme;
+		if (!spriteForme && baseId !== this.id && this.name.startsWith(this.baseSpecies + '-')) {
+			spriteForme = this.name.slice(this.baseSpecies.length + 1);
+		}
+		this.formeid = (baseId === this.id ? '' : '-' + toID(spriteForme));
 		this.spriteid = baseId + this.formeid;
 		if (this.spriteid.slice(-5) === 'totem') this.spriteid = this.spriteid.slice(0, -5);
 		if (this.spriteid === 'greninja-bond') this.spriteid = 'greninja';

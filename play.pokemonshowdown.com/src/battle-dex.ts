@@ -167,6 +167,10 @@ interface TeambuilderSpriteData {
 	spriteDir: string;
 	spriteid: string;
 	shiny?: boolean;
+	/** set for R2 renders: full image URL and the size to draw it at */
+	url?: string;
+	w?: number;
+	h?: number;
 }
 
 const Dex = new class implements ModdedDex {
@@ -181,7 +185,35 @@ const Dex = new class implements ModdedDex {
 
 	//TODO we might want to move this to something like data/petmods
 	readonly modResourcePrefix = 'https://raw.githubusercontent.com/Grennpixel4/Dystoria-Showdown-website/main/data/mods/';
+	// Mods whose assets live in the Cloudflare R2 bucket (dystoria-sprites). Object keys mirror the old repo
+	// layout, i.e. https://sprites.dystorialab.org/<mod>/sprites/<front|back|icons|...>/<id>.png
+	readonly r2ResourcePrefix = 'https://sprites.dystorialab.org/';
+	readonly r2Mods: ReadonlyArray<string> = ['dystoria'];
 
+	getModResourcePrefix(mod: string): string {
+		return this.r2Mods.includes(mod) ? this.r2ResourcePrefix : this.modResourcePrefix;
+	}
+
+	/**
+	 * The R2 renders are ~2.3x bigger than stock sprites (avg ~192x208 vs ~81x89), so battle sprites are scaled down.
+	 * Tune live from the browser console without rebuilding: Storage.prefs('r2scale', 0.6)  (Storage.prefs('r2scale', null) resets)
+	 */
+	readonly r2SpriteScale = 0.5;
+	getR2SpriteScale(): number {
+		const pref = Number(Dex.prefs('r2scale'));
+		return pref > 0 && pref <= 2 ? pref : this.r2SpriteScale;
+	}
+
+	/** Exact pixel size of one R2 file; `key` is front/back/frontf/backf (GIFs) or img/imgb/imgf/imgbf (PNGs). */
+	getR2Size(row: any, key: string, shiny: boolean): {w: number, h: number} | undefined {
+		return (shiny && row.s?.[key]) || row[key];
+	}
+
+	/** Size/filename data for species whose renders live in R2 (built by build-minidex); null if not covered. */
+	getR2SpriteRow(id: string): any {
+		const row = window.BattlePokemonSprites?.[id] as any;
+		return row && !row.ps && (row.front || row.back) ? row : null;
+	}
 
 	resourcePrefix = (() => {
 		let prefix = '';
@@ -542,7 +574,7 @@ const Dex = new class implements ModdedDex {
 		let modSpriteId = toID(modSpecies.spriteid);		
 		options.mod = this.getSpriteMod(options.mod, modSpriteId, isFront ? 'front' : 'back', modSpecies.exists);
 		if (options.mod) {
-			resourcePrefix = Dex.modResourcePrefix;
+			resourcePrefix = Dex.getModResourcePrefix(options.mod);
 			spriteDir = `${options.mod}/sprites/`;
 			hasCustomSprite = true;
 			if (this.getSpriteMod(options.mod, modSpriteId, (isFront ? 'front' : 'back') + '-shiny', modSpecies.exists) === '') options.shiny = false;
@@ -680,6 +712,22 @@ const Dex = new class implements ModdedDex {
 			}
 		}
 		
+		// Dystoria: species in the R2 sprite set (rows built by build-minidex, without `ps`) use those renders
+		// from sprites.dystorialab.org/sprites/{ani,ani-back,ani-shiny,img,...}, taking priority over mod sprites.
+		let r2Row: any = null;
+		if (baseDir === '' && window.BattlePokemonSprites) {
+			const row: any = BattlePokemonSprites[speciesid];
+			if (row && !row.ps && (row[facing] || row[facing + 'f'])) r2Row = row;
+		}
+		if (r2Row) {
+			hasCustomSprite = false;
+			options.mod = '';
+			spriteData.url = Dex.r2ResourcePrefix + 'sprites/';
+			dir = isFront ? '' : '-back';
+			if (options.shiny && mechanicsGen > 1) dir += '-shiny';
+			if (r2Row.sid) name = r2Row.sid;
+		}
+
 		let hasCustomAnim = false;
 		if (hasCustomSprite && window.ModSprites[modSpriteId][options.mod].includes('ani' + facing)){
 			hasCustomAnim = true;
@@ -694,14 +742,19 @@ const Dex = new class implements ModdedDex {
 			if (facing.slice(-1) === 'f') name += '-f';
 			dir = baseDir + 'ani' + dir;
 
-			spriteData.w = animationData[facing].w;
-			spriteData.h = animationData[facing].h;
+			// shiny GIFs can differ in size from the normal ones (R2 rows carry the exact size)
+			const aniSize = r2Row ? this.getR2Size(r2Row, facing, !!options.shiny && mechanicsGen > 1) : animationData[facing];
+			spriteData.w = aniSize.w;
+			spriteData.h = aniSize.h;
 			spriteData.url += dir + '/' + name + '.gif';
 			console.log(animationData[facing]);
 		} else {
 			// There is no entry or enough data in pokedex-mini.js
 			// Handle these in case-by-case basis; either using BW sprites or matching the played gen.
-			if (!hasCustomSprite) dir = (baseDir || 'gen5') + dir;
+			if (r2Row) {
+				// static render from the R2 set (animations disabled)
+				dir = 'img' + dir;
+			} else if (!hasCustomSprite) dir = (baseDir || 'gen5') + dir;
 
 			// Gender differences don't exist prior to Gen 4,
 			// so there are no sprites for it
@@ -716,7 +769,26 @@ const Dex = new class implements ModdedDex {
 				}
 			}
 
+			if (r2Row) {
+				// exact size of the static render actually being requested (it often differs from the GIF's)
+				const isFemaleName = name.slice(-2) === '-f';
+				const imgKey = (isFront ? 'img' : 'imgb') + (isFemaleName ? 'f' : '');
+				const shinyImg = !!options.shiny && mechanicsGen > 1;
+				const staticSize = this.getR2Size(r2Row, imgKey, shinyImg) || this.getR2Size(r2Row, isFront ? 'img' : 'imgb', shinyImg);
+				if (staticSize) {
+					spriteData.w = staticSize.w;
+					spriteData.h = staticSize.h;
+				}
+			}
+
 			spriteData.url += dir + '/' + name + '.png';
+		}
+
+		// R2 renders are much larger than stock sprites; shrink them to fit the battle scene
+		if (r2Row) {
+			const r2Scale = this.getR2SpriteScale();
+			spriteData.w *= r2Scale;
+			spriteData.h *= r2Scale;
 		}
 
 		if (!options.noScale) {
@@ -811,7 +883,7 @@ const Dex = new class implements ModdedDex {
 		Dex.species.get(id);
 		let species = window.BattlePokedexAltForms && window.BattlePokedexAltForms[id] ? window.BattlePokedexAltForms[id] : Dex.species.get(id);
 		mod = this.getSpriteMod(mod, id, 'icons', species.exists !== false);
-		if (mod) return `background:transparent url(${this.modResourcePrefix}${mod}/sprites/icons/${id}.png) no-repeat scroll -0px -0px${fainted}`;
+		if (mod) return `background:transparent url(${this.getModResourcePrefix(mod)}${mod}/sprites/icons/${id}.png) no-repeat scroll -0px -0px${fainted}`;
 		return `background:transparent url(${Dex.resourcePrefix}sprites/pokemonicons-sheet.png?v16) no-repeat scroll -${left}px -${top}px${fainted}`;
 
 	}
@@ -822,6 +894,26 @@ const Dex = new class implements ModdedDex {
 		let species = window.BattlePokedexAltForms && window.BattlePokedexAltForms[id] ? window.BattlePokedexAltForms[id] : Dex.species.get(pokemon.species);;
 		if (pokemon.species && !spriteid) {
 			spriteid = species.spriteid || toID(pokemon.species);
+		}
+		// Dystoria: use the static R2 render as the teambuilder art, fitted into the .setchart art area
+		const r2Row = this.getR2SpriteRow(toID(spriteid)) || this.getR2SpriteRow(species.id);
+		if (r2Row?.front) {
+			// use the PNG's own size (it differs from the GIF's for many species, eg. Charizard 124x148 vs 191x148)
+			const imgSize = this.getR2Size(r2Row, 'img', !!pokemon.shiny) || r2Row.front;
+			const maxW = 112, maxH = 118;
+			const fit = Math.min(maxW / imgSize.w, maxH / imgSize.h);
+			// keep fractional sizes (CSS allows them) so very thin sprites keep their exact aspect ratio
+			const w = Math.round(imgSize.w * fit * 100) / 100, h = Math.round(imgSize.h * fit * 100) / 100;
+			return {
+				spriteDir: 'img',
+				spriteid: r2Row.sid || spriteid,
+				url: `${this.r2ResourcePrefix}sprites/img${pokemon.shiny ? '-shiny' : ''}/${r2Row.sid || spriteid}.png`,
+				shiny: !!pokemon.shiny,
+				x: 6 + Math.round((maxW - w) / 2),
+				y: 4 + Math.round((maxH - h) / 2),
+				w,
+				h,
+			};
 		}
 		if (mod && window.ModConfig[mod].spriteGen) gen = window.ModConfig[mod].spriteGen;
 		mod = this.getSpriteMod(mod, id, 'front', species.exists !== false);
@@ -886,9 +978,14 @@ const Dex = new class implements ModdedDex {
 	getTeambuilderSprite(pokemon: any, gen: number = 0, mod: string = '') {
 		if (!pokemon) return '';
 		const data = this.getTeambuilderSpriteData(pokemon, gen, mod);
+		if (data.url) {
+			return 'background-image:url(' + data.url + ');background-position:' + data.x + 'px ' + data.y + 'px;' +
+				'background-size:' + data.w + 'px ' + data.h + 'px;background-repeat:no-repeat';
+		}
 		const shiny = (data.shiny ? '-shiny' : '');
 		let resourcePrefix = Dex.resourcePrefix;
-		if (data.spriteDir.includes('front')) resourcePrefix = Dex.modResourcePrefix;
+		// mod sprite dirs look like `<mod>/sprites/front`
+		if (data.spriteDir.includes('front')) resourcePrefix = Dex.getModResourcePrefix(data.spriteDir.split('/')[0]);
 		return 'background-image:url(' + resourcePrefix + data.spriteDir + shiny + '/' + data.spriteid + '.png);background-position:' + data.x + 'px ' + data.y + 'px;background-repeat:no-repeat';
 	}
 
@@ -896,7 +993,7 @@ const Dex = new class implements ModdedDex {
 		let num = 0;
 		if (typeof item === 'string' && exports.BattleItems) item = exports.BattleItems[toID(item)];
 		mod = this.getSpriteMod(mod, item.id, 'items');
-		if (mod) return `background:transparent url(${this.modResourcePrefix}${mod}/sprites/items/${item.id}.png) no-repeat`;
+		if (mod) return `background:transparent url(${this.getModResourcePrefix(mod)}${mod}/sprites/items/${item.id}.png) no-repeat`;
 		if (item?.spritenum) num = item.spritenum;
 
 		let top = Math.floor(num / 16) * 24;
@@ -910,7 +1007,7 @@ const Dex = new class implements ModdedDex {
 		let sanitizedType = type.replace(/\?/g, '%3f');
 		mod = this.getSpriteMod(mod, toID(type), 'types');
 		if (mod && (type !== '???')) {
-			return `<img src="${this.modResourcePrefix}${mod}/sprites/types/${toID(type)}.png" alt="${type}" class="pixelated${b ? ' b' : ''}" />`;
+			return `<img src="${this.getModResourcePrefix(mod)}${mod}/sprites/types/${toID(type)}.png" alt="${type}" class="pixelated${b ? ' b' : ''}" />`;
 		} else {
 			return `<img src="${Dex.resourcePrefix}sprites/types/${sanitizedType}.png" alt="${type}" height="14" width="32" class="pixelated${b ? ' b' : ''}" />`;
 		}

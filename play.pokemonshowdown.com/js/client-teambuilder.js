@@ -3589,7 +3589,7 @@
 			let resourcePrefix;
 			let d;
 			if (modSprite) {
-				resourcePrefix = Dex.modResourcePrefix + modSprite + '/';
+				resourcePrefix = Dex.getModResourcePrefix(modSprite) + modSprite + '/';
 				d = "";
 			}  else {
 				resourcePrefix = Dex.resourcePrefix;
