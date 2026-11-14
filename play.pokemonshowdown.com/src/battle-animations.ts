@@ -16,9 +16,6 @@ import type { BattleSceneStub } from './battle-scene-stub';
 import { BattleMoveAnims } from './battle-animations-moves';
 import { BattleLog } from './battle-log';
 import { type BattleBGM, BattleSound } from './battle-sound';
-import { Dex, toID, type ID, type SpriteData } from './battle-dex';
-import { BattleNatures } from './battle-dex-data';
-import { BattleTooltips } from './battle-tooltips';
 import { BattleTextParser, type Args, type KWArgs } from './battle-text-parser';
 
 /*
@@ -743,6 +740,7 @@ export class BattleScene implements BattleSceneStub {
 			`</div>${badgehtml}${pokemonhtml}</div>`
 		);
 	}
+	updateSpritesForSide(side: Side) { }
 	updateSidebar(side: Side) {
 		if (this.battle.gameType === 'freeforall') {
 			this.updateLeftSidebar();
@@ -2422,7 +2420,7 @@ export class PokemonSprite extends Sprite {
 		}, 'accel');
 
 		this.updateStatbar(pokemon, true);
-		let $statbar = this.$statbar;
+		const $statbar = this.$statbar;
 		if ($statbar) {
 			this.$statbar = null;
 			$statbar.animate({
@@ -2479,7 +2477,7 @@ export class PokemonSprite extends Sprite {
 		if (this.scene.acceleration < 3) this.scene.wait(600 / this.scene.acceleration);
 
 		this.updateStatbar(pokemon, true);
-		let $statbar = this.$statbar;
+		const $statbar = this.$statbar;
 		if ($statbar) {
 			this.$statbar = null;
 			$statbar.animate({
@@ -2514,7 +2512,7 @@ export class PokemonSprite extends Sprite {
 			this.$el.remove();
 		});
 
-		let $statbar = this.$statbar;
+		const $statbar = this.$statbar;
 		if ($statbar) {
 			this.$statbar = null;
 			$statbar.animate({

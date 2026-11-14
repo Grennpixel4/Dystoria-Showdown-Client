@@ -86,9 +86,12 @@ const ModConfig = ModConfigData.ClientMods;
 var Formats = require('../caches/DH2/dist/config/formats.js').Formats;
 var OfficialFormats = require('../caches/DH2/dist/config/official-formats.js').Formats;
 
+const usedMods = new Set(Formats.concat(OfficialFormats).map(format => toID(format.mod)).filter(Boolean));
+const keepAllMods = !!process.env.KEEP_ALL_MODS;
 for (const modid in Dex.dexes) {
 	try {
 		if ((/gen\d/.test(modid) && modid.length === 4) || modid === 'base') continue;
+		if (!keepAllMods && !usedMods.has(modid)) continue;
 		let teambuilderConfig = Dex.dexes[modid].data.Scripts.teambuilderConfig;
 		teambuilderConfig = teambuilderConfig ? teambuilderConfig : {};
 		if(teambuilderConfig.moveIsNotUseless) teambuilderConfig.moveIsNotUseless = JSON.stringify(teambuilderConfig.moveIsNotUseless.toString());

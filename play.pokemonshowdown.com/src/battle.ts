@@ -31,9 +31,7 @@
 import { BattleSceneStub } from './battle-scene-stub';
 import { BattleLog } from './battle-log';
 import { BattleScene, type PokemonSprite, BattleStatusAnims } from './battle-animations';
-import { Dex, toID, toUserid, type ID, type ModdedDex } from './battle-dex';
 import { BattleTextParser, type Args, type KWArgs, type SideID } from './battle-text-parser';
-import { Teams } from './battle-teams';
 declare const app: { user: AnyObject, rooms: AnyObject, ignore?: AnyObject } | undefined;
 
 /** [id, element?, ...misc] */
@@ -2019,7 +2017,7 @@ export class Battle {
 			let poke = this.getPokemon(args[1]);
 			if (poke) {
 				this.scene.resultAnim(poke, 'Super-effective', 'bad');
-				if (Dex.afdMode === true) {
+				if ((Dex as any).afdMode === true) {
 					// April Fool's 2018
 					this.scene.runOtherAnim('hitmark' as ID, [poke]);
 				}
@@ -3679,8 +3677,9 @@ export class Battle {
 			poke.removeVolatile('itemremoved' as ID);
 			poke.terastallized = (/tera:([a-z]+)$/i.exec(args[2]))?.[1] || '';
 			if (args[0] === 'switch') {
-				if (poke.side.active[slot]) {
-					poke.side.switchOut(poke.side.active[slot], kwArgs);
+				const activePoke = poke.side.active[slot];
+				if (activePoke) {
+					poke.side.switchOut(activePoke, kwArgs);
 				}
 				poke.side.switchIn(poke, kwArgs);
 			} else if (args[0] === 'replace') {

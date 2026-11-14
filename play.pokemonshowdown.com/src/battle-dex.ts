@@ -190,8 +190,13 @@ const Dex = new class implements ModdedDex {
 	readonly r2ResourcePrefix = 'https://sprites.dystorialab.org/';
 	readonly r2Mods: ReadonlyArray<string> = ['dystoria'];
 
-	getModResourcePrefix(mod: string): string {
-		return this.r2Mods.includes(mod) ? this.r2ResourcePrefix : this.modResourcePrefix;
+	/**
+	 * Base URL for a mod's assets; append `sprites/<folder>/<id>.png` or `audio/cries/<id>.mp3`.
+	 * R2 mods live at the bucket root (https://sprites.dystorialab.org/sprites/...), every other mod at
+	 * <github raw>/<mod>/sprites/...
+	 */
+	getModBase(mod: string): string {
+		return this.r2Mods.includes(mod) ? this.r2ResourcePrefix : `${this.modResourcePrefix}${mod}/`;
 	}
 
 	/**
@@ -574,8 +579,8 @@ const Dex = new class implements ModdedDex {
 		let modSpriteId = toID(modSpecies.spriteid);		
 		options.mod = this.getSpriteMod(options.mod, modSpriteId, isFront ? 'front' : 'back', modSpecies.exists);
 		if (options.mod) {
-			resourcePrefix = Dex.getModResourcePrefix(options.mod);
-			spriteDir = `${options.mod}/sprites/`;
+			resourcePrefix = Dex.getModBase(options.mod);
+			spriteDir = 'sprites/';
 			hasCustomSprite = true;
 			if (this.getSpriteMod(options.mod, modSpriteId, (isFront ? 'front' : 'back') + '-shiny', modSpecies.exists) === '') options.shiny = false;
 		}
@@ -706,7 +711,7 @@ const Dex = new class implements ModdedDex {
 			//For whatever reason if there is a cry but no true sprite data then options.mod becomes '' regardless of mod
 			//TODO: Possibly fix that? I wouldn't prioritize it though
 			if (window.ModSprites[modSpriteId]?.[options.mod]?.includes('cries')) {
-				spriteData.cryurl = resourcePrefix + options.mod + '/audio/cries/' + speciesid + '.mp3';
+				spriteData.cryurl = resourcePrefix + 'audio/cries/' + speciesid + '.mp3';
 			} else { //We couldn't find a cry
 				spriteData.cryurl = '';
 			}
@@ -786,7 +791,7 @@ const Dex = new class implements ModdedDex {
 
 		// R2 renders are much larger than stock sprites; shrink them to fit the battle scene
 		if (r2Row) {
-			const r2Scale = this.getR2SpriteScale();
+			const r2Scale = this.getR2SpriteScale() * (r2Row.sc || 1);
 			spriteData.w *= r2Scale;
 			spriteData.h *= r2Scale;
 		}
@@ -883,7 +888,7 @@ const Dex = new class implements ModdedDex {
 		Dex.species.get(id);
 		let species = window.BattlePokedexAltForms && window.BattlePokedexAltForms[id] ? window.BattlePokedexAltForms[id] : Dex.species.get(id);
 		mod = this.getSpriteMod(mod, id, 'icons', species.exists !== false);
-		if (mod) return `background:transparent url(${this.getModResourcePrefix(mod)}${mod}/sprites/icons/${id}.png) no-repeat scroll -0px -0px${fainted}`;
+		if (mod) return `background:transparent url(${this.getModBase(mod)}sprites/icons/${id}.png) no-repeat scroll -0px -0px${fainted}`;
 		return `background:transparent url(${Dex.resourcePrefix}sprites/pokemonicons-sheet.png?v16) no-repeat scroll -${left}px -${top}px${fainted}`;
 
 	}
@@ -984,16 +989,21 @@ const Dex = new class implements ModdedDex {
 		}
 		const shiny = (data.shiny ? '-shiny' : '');
 		let resourcePrefix = Dex.resourcePrefix;
+		let spriteDir = data.spriteDir;
 		// mod sprite dirs look like `<mod>/sprites/front`
-		if (data.spriteDir.includes('front')) resourcePrefix = Dex.getModResourcePrefix(data.spriteDir.split('/')[0]);
-		return 'background-image:url(' + resourcePrefix + data.spriteDir + shiny + '/' + data.spriteid + '.png);background-position:' + data.x + 'px ' + data.y + 'px;background-repeat:no-repeat';
+		if (spriteDir.includes('front')) {
+			const modName = spriteDir.split('/')[0];
+			resourcePrefix = Dex.getModBase(modName);
+			spriteDir = spriteDir.slice(modName.length + 1);
+		}
+		return 'background-image:url(' + resourcePrefix + spriteDir + shiny + '/' + data.spriteid + '.png);background-position:' + data.x + 'px ' + data.y + 'px;background-repeat:no-repeat';
 	}
 
 	getItemIcon(item: any, mod: string = '') {
 		let num = 0;
 		if (typeof item === 'string' && exports.BattleItems) item = exports.BattleItems[toID(item)];
 		mod = this.getSpriteMod(mod, item.id, 'items');
-		if (mod) return `background:transparent url(${this.getModResourcePrefix(mod)}${mod}/sprites/items/${item.id}.png) no-repeat`;
+		if (mod) return `background:transparent url(${this.getModBase(mod)}sprites/items/${item.id}.png) no-repeat`;
 		if (item?.spritenum) num = item.spritenum;
 
 		let top = Math.floor(num / 16) * 24;
@@ -1007,7 +1017,7 @@ const Dex = new class implements ModdedDex {
 		let sanitizedType = type.replace(/\?/g, '%3f');
 		mod = this.getSpriteMod(mod, toID(type), 'types');
 		if (mod && (type !== '???')) {
-			return `<img src="${this.getModResourcePrefix(mod)}${mod}/sprites/types/${toID(type)}.png" alt="${type}" class="pixelated${b ? ' b' : ''}" />`;
+			return `<img src="${this.getModBase(mod)}sprites/types/${toID(type)}.png" alt="${type}" class="pixelated${b ? ' b' : ''}" />`;
 		} else {
 			return `<img src="${Dex.resourcePrefix}sprites/types/${sanitizedType}.png" alt="${type}" height="14" width="32" class="pixelated${b ? ' b' : ''}" />`;
 		}
@@ -1164,7 +1174,7 @@ class ModdedDex {
 
 	species = {
 		get: (name: string, hasData = true, debug = ""): Species => {
-			if (name.id) name = name.id; 
+			if ((name as any).id) name = (name as any).id;
 			let id = toID(name);
 			let formid = id;
 			if (window.BattleAliases && id in BattleAliases) {

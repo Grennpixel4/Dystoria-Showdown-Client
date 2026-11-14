@@ -8,7 +8,6 @@
  * @license MIT
  */
 
-import { Dex, toID, type ID } from "./battle-dex";
 
 export type Args = [string, ...string[]];
 export type KWArgs = { [kw: string]: string };

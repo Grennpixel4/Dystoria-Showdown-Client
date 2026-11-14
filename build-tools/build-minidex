@@ -117,6 +117,28 @@ function addExactSizes(row, file) {
 	if (Object.keys(shiny).length) row.s = shiny;
 }
 
+function readScaleOverrides() {
+	const file = path.resolve(__dirname, 'sprite-scale.json');
+	const out = {};
+	if (!fs.existsSync(file)) return out;
+	let data;
+	try {
+		data = JSON.parse(fs.readFileSync(file, 'utf8'));
+	} catch (e) {
+		console.log(`\nWarning: couldn't read ${file} (${e.message}); no scale overrides applied`);
+		return out;
+	}
+	for (const key in data) {
+		const value = Number(data[key]);
+		if (!(value > 0)) {
+			console.log(`\nWarning: ignoring invalid scale for ${key}: ${data[key]}`);
+			continue;
+		}
+		out[toID(key)] = value;
+	}
+	return out;
+}
+
 function rowToString(id, row) {
 	return `\t${id}:` + JSON.stringify(row).replace(/"(\w+)":/g, '$1:') + `,\n`;
 }
@@ -203,7 +225,12 @@ exports.BattlePokemonSprites = {
 			break;
 		}
 	}
-	for (const {id, row} of rows) buf += rowToString(id, row);
+	const scaleOverrides = readScaleOverrides();
+	for (const {id, row} of rows) {
+		const scale = scaleOverrides[id];
+		if (scale && scale !== 1 && hasArt(row) && !row.ps) row.sc = scale;
+		buf += rowToString(id, row);
+	}
 
 	buf = buf.slice(0, -2) + `
 };
