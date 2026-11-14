@@ -14,7 +14,7 @@ const server_repo = require("./server-repo");
  */
 const CLIENT_TEXT_PLACEHOLDERS = new Set([
 	'POKEMON', 'NICKNAME', 'SPECIES', 'MOVE', 'ITEM', 'ABILITY', 'STAT', 'TYPE', 'NUMBER',
-	'TRAINER', 'FULLNAME', 'TEAM', 'TARGET', 'SOURCE', 'EFFECT', 'PERCENTAGE', 'NAME',
+	'TRAINER', 'TRAINER1', 'TRAINER2', 'FULLNAME', 'TEAM', 'TARGET', 'SOURCE', 'EFFECT', 'PERCENTAGE', 'NAME',
 ]);
 function toClientText(input) {
 	if (typeof input !== 'string') return input;
@@ -1866,6 +1866,11 @@ function buildText() {
 	for (const id in textData.Moves) assignData(id, textData.Moves[id]);
 	for (const id in textData.Abilities) assignData(id, textData.Abilities[id]);
 	for (const id in textData.Items) assignData(id, textData.Items[id]);
+
+	// Stat names live in their own tables on the server, but the client's parser reads them
+	// off the same object as `StatNames` / `StatShortNames` (`BattleTextParser.stat`).
+	Text.StatNames = convertTextTree(textData.StatNames);
+	Text.StatShortNames = convertTextTree(textData.StatShortNames);
 
 	const buf = 'exports.BattleText = ' + es3stringify(Text) + ';';
 	fs.writeFileSync('play.pokemonshowdown.com/data/text.js', buf);
