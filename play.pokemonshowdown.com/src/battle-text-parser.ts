@@ -397,9 +397,15 @@ export class BattleTextParser {
 	}
 
 	static stat(stat: string) {
+		// Older clients had a `statName` on a per-stat entry. Newer server data keeps the
+		// stat names in `StatNames` / `StatShortNames`, so fall back to those.
 		const entry = BattleText[stat || "stats"];
-		if (!entry?.statName) return `???stat:${stat}???`;
-		return entry.statName;
+		if (entry?.statName) return entry.statName;
+		const names = BattleText.StatNames || BattleText.StatMediumNames;
+		if (names?.[stat || 'stats']) return names[stat || 'stats'];
+		const shortNames = BattleText.StatShortNames;
+		if (shortNames?.[stat || 'stats']) return shortNames[stat || 'stats'];
+		return `???stat:${stat}???`;
 	}
 
 	lineSection(args: Args, kwArgs: KWArgs) {
@@ -495,7 +501,10 @@ export class BattleTextParser {
 		}
 
 		case 'start': {
-			return this.template('startBattle').replace('[TRAINER]', this.p1).replace('[TRAINER]', this.p2);
+			// newer server text uses {TRAINER1}/{TRAINER2}; older text used [TRAINER] twice
+			const template = this.template('startBattle');
+			return template.replace('[TRAINER1]', this.p1).replace('[TRAINER2]', this.p2)
+				.replace('[TRAINER]', this.p1).replace('[TRAINER]', this.p2);
 		}
 
 		case 'win': case 'tie': {
