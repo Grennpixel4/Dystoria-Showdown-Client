@@ -6,6 +6,32 @@ const path = require('path');
 const child_process = require("child_process");
 const server_repo = require("./server-repo");
 
+/**
+ * The server's text tables write battle-message placeholders as `{POKEMON}`, but the
+ * client's parser (battle-text-parser.ts) substitutes `[POKEMON]` and friends, so a
+ * template copied verbatim leaves `{POKEMON}` on screen. Convert the placeholders here,
+ * keeping anything the parser doesn't know about (`{TRAINER1}`, `[INFLECT:...]`) as is.
+ */
+const CLIENT_TEXT_PLACEHOLDERS = new Set([
+	'POKEMON', 'NICKNAME', 'SPECIES', 'MOVE', 'ITEM', 'ABILITY', 'STAT', 'TYPE', 'NUMBER',
+	'TRAINER', 'FULLNAME', 'TEAM', 'TARGET', 'SOURCE', 'EFFECT', 'PERCENTAGE', 'NAME',
+]);
+function toClientText(input) {
+	if (typeof input !== 'string') return input;
+	return input.replace(/\{([A-Z0-9]+)\}/g, (match, id) => (
+		CLIENT_TEXT_PLACEHOLDERS.has(id) ? '[' + id + ']' : match
+	));
+}
+
+/** Deep-copies a text table with every placeholder converted, so the shared cache stays untouched. */
+function convertTextTree(input) {
+	if (typeof input === 'string') return toClientText(input);
+	if (!input || typeof input !== 'object') return input;
+	const output = Array.isArray(input) ? [] : {};
+	for (const key in input) output[key] = convertTextTree(input[key]);
+	return output;
+}
+
 const rootDir = path.resolve(__dirname, '..');
 process.chdir(rootDir);
 
@@ -1819,7 +1845,8 @@ function buildModSprites() {
 
 function buildText() {
 	const textData = Dex.loadTextData();
-	const Text = textData.Default;
+	// copy, so the shared text cache stays in the server's own `{TOKEN}` format
+	const Text = convertTextTree(textData.Default);
 
 	function assignData(id, entry) {
 		for (const key in entry) {
@@ -1828,10 +1855,10 @@ function buildText() {
 			if (key.startsWith('gen')) {
 				for (const modKey in entry[key]) {
 					if (['desc', 'shortDesc'].includes(key)) continue;
-					textEntry[modKey + 'Gen' + key.charAt(3)] = entry[key][modKey];
+					textEntry[modKey + 'Gen' + key.charAt(3)] = toClientText(entry[key][modKey]);
 				}
 			} else {
-				textEntry[key] = entry[key];
+				textEntry[key] = toClientText(entry[key]);
 			}
 		}
 	}
