@@ -11,14 +11,45 @@ process.chdir(rootDir);
 
 const debug = true;
 
+// Newer server data no longer has an item `rating`, which is what used to build the
+// "Popular items" section of the teambuilder. These items are shown there instead.
+const POPULAR_ITEMS = new Set([
+	'airballoon', 'assaultvest', 'choiceband', 'choicescarf', 'choicespecs', 'expertbelt', 'focussash',
+	'heavydutyboots', 'leftovers', 'lifeorb', 'loadeddice', 'mentalherb', 'powerherb', 'rockyhelmet', 'salacberry',
+]);
+
 process.stdout.write("Syncing data from Git repository... ");
 if (!fs.existsSync('./caches/DH2')) {
-	child_process.execSync('git clone ' + server_repo + ' caches/DH2', {
-	});
-	child_process.execSync("git pull " + server_repo, {cwd: 'caches/DH2'});
+	child_process.execSync('git clone ' + server_repo + ' caches/DH2', {stdio: 'inherit'});
+} else {
+	// keep an existing cache in sync with the server repo instead of silently reusing an old copy
+	child_process.execSync('git remote set-url origin ' + server_repo, {cwd: 'caches/DH2'});
+	child_process.execSync('git fetch origin', {cwd: 'caches/DH2', stdio: 'inherit'});
+	child_process.execSync('git reset --hard origin/main', {cwd: 'caches/DH2'});
 }
 
 child_process.execSync('npm run build', {cwd: 'caches/DH2'});
+
+// Newer server data stores cosmetic formes (Vivillon patterns, Minior colors, Alcremie creams, ...)
+// as stripped-down entries with no types/num/baseStats. The base species already lists them in
+// `cosmeticFormes`, and this older client script can't read the stripped entries, so remove them
+// from the compiled data before anything else loads it.
+{
+	const pokedexFile = path.resolve('caches/DH2/dist/data/pokedex.js');
+	const pokedexData = require(pokedexFile).Pokedex;
+	let removed = 0;
+	for (const id of Object.keys(pokedexData)) {
+		const entry = pokedexData[id];
+		if (entry && entry.isCosmeticForme && !entry.types) {
+			delete pokedexData[id];
+			removed++;
+		}
+	}
+	if (removed) {
+		fs.writeFileSync(pokedexFile, '"use strict";\nexports.Pokedex = ' + JSON.stringify(pokedexData) + ';\n');
+		console.log('(removed ' + removed + ' stripped cosmetic forme entries) ');
+	}
+}
 
 console.log("DONE");
 
@@ -726,7 +757,7 @@ function buildTeambuilderTables() {
 				badItems.push(id);
 				continue;
 			}
-			switch (item.rating) {
+			switch (item.rating !== undefined ? item.rating : (POPULAR_ITEMS.has(id) ? 3 : 2)) {
 			case 3:
 				greatItems.push(id);
 				break;
@@ -1660,8 +1691,9 @@ function buildMoves() {
 	const Moves = requireNoCache('../caches/DH2/dist/data/moves.js').Moves;
 	for (const id in Moves) {
 		const move = Dex.moves.get(Moves[id].name);
-		if (move.desc) Moves[id].desc = move.desc;
-		if (move.shortDesc) Moves[id].shortDesc = move.shortDesc;
+		const text = Dex.text ? Dex.text.get(move) : move; // newer servers: descriptions live in data/text
+		if (text.desc) Moves[id].desc = text.desc;
+		if (text.shortDesc) Moves[id].shortDesc = text.shortDesc;
 		if (move.basePowerCallback) Moves[id].basePowerCallback = true;
 	}
 	const buf = 'exports.BattleMovedex = ' + es3stringify(Moves) + ';';
@@ -1677,8 +1709,9 @@ function buildItems() {
 	const Items = requireNoCache('../caches/DH2/dist/data/items.js').Items;
 	for (const id in Items) {
 		const item = Dex.items.get(Items[id].name);
-		if (item.desc) Items[id].desc = item.desc;
-		if (item.shortDesc) Items[id].shortDesc = item.shortDesc;
+		const text = Dex.text ? Dex.text.get(item) : item;
+		if (text.desc) Items[id].desc = text.desc;
+		if (text.shortDesc) Items[id].shortDesc = text.shortDesc;
 	}
 	const buf = 'exports.BattleItems = ' + es3stringify(Items) + ';';
 	fs.writeFileSync('play.pokemonshowdown.com/data/items.js', buf);
@@ -1692,8 +1725,9 @@ function buildAbilities() {
 	const Abilities = requireNoCache('../caches/DH2/dist/data/abilities.js').Abilities;
 	for (const id in Abilities) {
 		const ability = Dex.abilities.get(Abilities[id].name);
-		if (ability.desc) Abilities[id].desc = ability.desc;
-		if (ability.shortDesc) Abilities[id].shortDesc = ability.shortDesc;
+		const text = Dex.text ? Dex.text.get(ability) : ability;
+		if (text.desc) Abilities[id].desc = text.desc;
+		if (text.shortDesc) Abilities[id].shortDesc = text.shortDesc;
 	}
 	const buf = 'exports.BattleAbilities = ' + es3stringify(Abilities) + ';';
 	fs.writeFileSync('play.pokemonshowdown.com/data/abilities.js', buf);
