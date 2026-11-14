@@ -180,7 +180,7 @@ const Dex = new class implements ModdedDex {
 	pokeballs: string[] | null = null;
 
 	//TODO we might want to move this to something like data/petmods
-	readonly modResourcePrefix = 'https://raw.githubusercontent.com/scoopapa/dh2/master/data/mods/';
+	readonly modResourcePrefix = 'https://raw.githubusercontent.com/Grennpixel4/Dystoria-Showdown-website/main/data/mods/';
 
 
 	resourcePrefix = (() => {
@@ -476,6 +476,9 @@ const Dex = new class implements ModdedDex {
 	// id is the name of the pokemon, type, or item. folder refers to "front", or "back-shiny" etc. overrideStandard is false for custom elements and true for canon elements
 	getSpriteMod(optionsMod: string, spriteId: string, filepath: string, overrideStandard: boolean = false) {
 		if (!window.ModSprites[spriteId]) return '';
+		// Dystoria: anything in data/mods/dystoria/sprites always wins, even for Pokemon that exist in the base dex
+		const dystoriaSprites = window.ModSprites[spriteId]['dystoria'];
+		if (dystoriaSprites && (dystoriaSprites.includes(filepath) || dystoriaSprites.includes('ani' + filepath))) return 'dystoria';
 		if ((!optionsMod || !window.ModSprites[spriteId][optionsMod]) && !overrideStandard) { // for custom elements only, it will use sprites from another mod if the mod provided doesn't have one
 			for (const modName in window.ModSprites[spriteId]) {
 				if (window.ModSprites[spriteId][modName].includes(filepath)) return modName;
