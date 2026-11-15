@@ -233,14 +233,18 @@ https://replay.pokemonshowdown.com/gen7randomdoublesbattle-865046831.log
 <script defer src="//play.pokemonshowdown.com/js/lib/html-sanitizer-minified.js"></script>
 <script defer src="//play.pokemonshowdown.com/js/battle-sound.js"></script>
 <script defer src="//play.pokemonshowdown.com/js/battledata.js?a7"></script>
+<script defer src="//play.pokemonshowdown.com/data/text.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/pokedex-mini.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/pokedex-mini-bw.js?a7"></script>
+<script defer src="//play.pokemonshowdown.com/data/typechart.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/graphics.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/pokedex.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/moves.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/abilities.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/items.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/data/teambuilder-tables.js?a7"></script>
+<script defer src="//play.pokemonshowdown.com/data/mod-sprites.js?a7"></script>
+<script defer src="//play.pokemonshowdown.com/data/mod-config.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/js/battle-tooltips.js?a7"></script>
 <script defer src="//play.pokemonshowdown.com/js/battle.js?a7"></script>
 
