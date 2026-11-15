@@ -22,6 +22,6 @@
 	@json path_regexp json ^/([A-Za-z0-9-]+)\.json$
 	rewrite @json /replay.log.php?json&name={re.json.1}
 
-	php_fastcgi unix//run/php/php8.3-fpm.sock
+	php_fastcgi unix//run/php/php-fpm.sock
 	file_server
 }
