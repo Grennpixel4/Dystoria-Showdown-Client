@@ -68,12 +68,13 @@ if (!fs.existsSync('./caches/DH2')) {
 } else {
 	// keep an existing cache in sync with the server repo instead of silently reusing an old copy
 	child_process.execSync('git remote set-url origin ' + server_repo, {cwd: 'caches/DH2'});
-	child_process.execSync('git fetch origin', {cwd: 'caches/DH2', stdio: 'inherit'});
+	child_process.execSync('git fetch --force --tags origin', {cwd: 'caches/DH2', stdio: 'inherit'});
 	// Only fast-forward if the cache has no local work. A hard reset here silently threw away
 	// uncommitted server fixes (the Z-A Mega data) on every build.
 	const cacheDirty = child_process.execSync('git status --porcelain', {cwd: 'caches/DH2', encoding: 'utf8'}).trim();
 	if (!cacheDirty) {
-		child_process.execSync('git merge --ff-only origin/main', {cwd: 'caches/DH2', stdio: 'inherit'});
+		const hasLiveTag = child_process.spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/tags/live^{commit}'], {cwd: 'caches/DH2'}).status === 0;
+		child_process.execSync('git checkout --quiet --detach ' + (hasLiveTag ? 'refs/tags/live' : 'origin/main'), {cwd: 'caches/DH2', stdio: 'inherit'});
 	} else {
 		process.stdout.write("\n  caches/DH2 has uncommitted changes, keeping them (not resetting). ");
 	}
