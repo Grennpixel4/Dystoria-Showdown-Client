@@ -16,8 +16,26 @@ const CLIENT_TEXT_PLACEHOLDERS = new Set([
 	'POKEMON', 'NICKNAME', 'SPECIES', 'MOVE', 'ITEM', 'ABILITY', 'STAT', 'TYPE', 'NUMBER',
 	'TRAINER', 'TRAINER1', 'TRAINER2', 'FULLNAME', 'TEAM', 'TARGET', 'SOURCE', 'EFFECT', 'PERCENTAGE', 'NAME',
 ]);
+
+/**
+ * `{INFLECT:TABLE:s=singular:p=plural}` picks a word by how many things there are: the
+ * server's English tables say `The Pokemon was hit {NUMBER} {INFLECT:NUMBER:s=time:p=times}!`
+ * and the parser has no idea what INFLECT is, so it printed the tag verbatim. The plural
+ * forms are only used for "more than one", so take the singular: "was hit 3 time" reads
+ * badly, but "was hit 3 times" is the only other option and `hitCountSingular` already
+ * covers the one-hit case (which the server handles as its own message).
+ * Tables: NUMBER (`-hitcount`) and STAT (`-unboost` on a Pokemon already at -6).
+ */
+const INFLECT_PLURAL = { NUMBER: 'times', STAT: 'were' };
+function resolveInflect(input) {
+	return input.replace(/\{INFLECT:([A-Z]+):[^}]*\}/g, (match, table) => (
+		INFLECT_PLURAL[table] || match
+	));
+}
+
 function toClientText(input) {
 	if (typeof input !== 'string') return input;
+	input = resolveInflect(input);
 	return input.replace(/\{([A-Z0-9]+)\}/g, (match, id) => (
 		CLIENT_TEXT_PLACEHOLDERS.has(id) ? '[' + id + ']' : match
 	));
@@ -86,12 +104,9 @@ const ModConfig = ModConfigData.ClientMods;
 var Formats = require('../caches/DH2/dist/config/formats.js').Formats;
 var OfficialFormats = require('../caches/DH2/dist/config/official-formats.js').Formats;
 
-const usedMods = new Set(Formats.concat(OfficialFormats).map(format => toID(format.mod)).filter(Boolean));
-const keepAllMods = !!process.env.KEEP_ALL_MODS;
 for (const modid in Dex.dexes) {
 	try {
 		if ((/gen\d/.test(modid) && modid.length === 4) || modid === 'base') continue;
-		if (!keepAllMods && !usedMods.has(modid)) continue;
 		let teambuilderConfig = Dex.dexes[modid].data.Scripts.teambuilderConfig;
 		teambuilderConfig = teambuilderConfig ? teambuilderConfig : {};
 		if(teambuilderConfig.moveIsNotUseless) teambuilderConfig.moveIsNotUseless = JSON.stringify(teambuilderConfig.moveIsNotUseless.toString());
