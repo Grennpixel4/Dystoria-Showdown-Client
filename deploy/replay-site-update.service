@@ -1,0 +1,8 @@
+[Unit]
+Description=Update the Dystoria replay site from the Client repo
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=showdown
+ExecStart=/bin/bash /home/showdown/Dystoria-Showdown-Client/deploy/update-replay-site.sh

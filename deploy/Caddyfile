@@ -1,0 +1,27 @@
+:8080 {
+	root * /home/showdown/Dystoria-Showdown-Client/replay.pokemonshowdown.com
+	encode gzip
+
+	handle_path /style/* {
+		root * /home/showdown/Dystoria-Showdown-Client/pokemonshowdown.com/style
+		file_server
+	}
+
+	@api path_regexp api ^/api/replays/(recent|search|searchprivate)$
+	rewrite @api /api.php?action={re.api.1}&{query}
+
+	@replay path_regexp replay ^/([A-Za-z0-9-]+)$
+	rewrite @replay /index.php?name={re.replay.1}&{query}
+
+	@log path_regexp log ^/([A-Za-z0-9-]+)\.log$
+	rewrite @log /replay.log.php?name={re.log.1}
+
+	@inputlog path_regexp inputlog ^/([A-Za-z0-9-]+)\.inputlog$
+	rewrite @inputlog /replay.log.php?inputlog&name={re.inputlog.1}
+
+	@json path_regexp json ^/([A-Za-z0-9-]+)\.json$
+	rewrite @json /replay.log.php?json&name={re.json.1}
+
+	php_fastcgi unix//run/php/php8.3-fpm.sock
+	file_server
+}

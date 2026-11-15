@@ -1,8 +1,8 @@
 {
-    "root": "api.petmodsdh.com",
-    "client": "petmodsdh.com",
+    "root": "dystorialab.org",
+    "client": "play.dystorialab.org",
     "dex": "dex.pokemonshowdown.com",
-    "replays": "replay.pokemonshowdown.com",
+    "replays": "replay.dystorialab.org",
     "users": "pokemonshowdown.com/users",
 	"psmain": "pokemonshowdown.com"
 }

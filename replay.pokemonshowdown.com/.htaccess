@@ -1,5 +1,5 @@
 RewriteEngine on
-RewriteRule ^api(/.*)?$ http://localhost:9000/api$1 [P,L]
+RewriteRule ^api/replays/(recent|search|searchprivate)$ api.php?action=$1 [L,QSA]
 
 RewriteRule ^search\.json$ /api/replays/search.json [L,QSA]
 RewriteRule ^recent\.json$ /api/replays/search.json [L,QSA]

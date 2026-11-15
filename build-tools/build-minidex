@@ -14,15 +14,46 @@ process.stdout.write("Updating animated sprite dimensions... ");
 /**
  * Where the animated sprite set lives. The Dystoria sprites are hosted on Cloudflare R2
  * (https://sprites.dystorialab.org/sprites/...) but the files are not in any git repo, so the
- * build reads sizes from a local copy of the same folder layout (ani/, ani-back/, ...).
+ * build reads sizes from build-tools/sprite-sizes.json.
  *
- * Override with SPRITE_SRC=/path/to/sprites. Otherwise: ./sprites, then the sibling website repo.
+ * Set SPRITE_SRC=/path/to/sprites (same layout: ani/, ani-back/, ...) to regenerate that file from the real export.
  */
-const spriteSrc = [
-	process.env.SPRITE_SRC,
-	'sprites',
-	'../../Dystoria-Showdown-website/data/mods/dystoria/sprites',
-].filter(Boolean).find(p => fs.existsSync(path.join(p, 'ani')));
+const spriteSrc = process.env.SPRITE_SRC && fs.existsSync(path.join(process.env.SPRITE_SRC, 'ani')) ?
+	process.env.SPRITE_SRC : null;
+if (process.env.SPRITE_SRC && !spriteSrc) {
+	console.log(`\nSPRITE_SRC has no ani/ folder: ${process.env.SPRITE_SRC}`);
+	process.exit(1);
+}
+
+const MANIFEST_FILE = path.resolve(__dirname, 'sprite-sizes.json');
+const MANIFEST_DIRS = ['ani', 'ani-back', 'ani-shiny', 'ani-back-shiny', 'img', 'img-back', 'img-shiny', 'img-back-shiny'];
+const manifest = spriteSrc ? buildManifest() : readManifest();
+
+function readManifest() {
+	if (!fs.existsSync(MANIFEST_FILE)) return null;
+	return JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8'));
+}
+
+function buildManifest() {
+	const out = {};
+	for (const dir of MANIFEST_DIRS) {
+		out[dir] = {};
+		const full = path.join(spriteSrc, dir);
+		if (!fs.existsSync(full)) continue;
+		for (const file of fs.readdirSync(full).filter(f => /\.(gif|png)$/.test(f)).sort()) {
+			try {
+				const size = imageSize(path.join(full, file));
+				out[dir][file] = [size.width, size.height];
+			} catch (e) {}
+		}
+	}
+	const dirs = MANIFEST_DIRS.map(dir => {
+		const rows = Object.entries(out[dir]).map(([file, size]) => `\t\t${JSON.stringify(file)}: [${size.join(', ')}]`);
+		return `\t${JSON.stringify(dir)}: {\n${rows.join(',\n')}\n\t}`;
+	});
+	fs.writeFileSync(MANIFEST_FILE, `{\n${dirs.join(',\n')}\n}\n`);
+	return out;
+}
 
 /**
  * Files in the R2 set don't always use the spriteid the client computes.
@@ -42,20 +73,15 @@ function fileCandidates(spriteid, speciesNameId) {
 	return out;
 }
 
-function sizeObj(file) {
-	try {
-		let size = imageSize(file);
-		return {
-			w: size.width,
-			h: size.height,
-		};
-	} catch (e) {}
+function sizeObj(dir, file) {
+	const size = manifest[dir]?.[file];
+	if (size) return {w: size[0], h: size[1]};
 }
 
 /** Find a sprite in `<spriteSrc>/<dir>/` under any candidate name. Returns {name, size}. */
-function findSprite(src, dir, spriteid, suffix, speciesNameId) {
+function findSprite(dir, spriteid, suffix, speciesNameId) {
 	for (const name of fileCandidates(spriteid, speciesNameId)) {
-		const size = sizeObj(path.join(src, dir, name + suffix + '.gif'));
+		const size = sizeObj(dir, name + suffix + '.gif');
 		if (size) return {name, size};
 	}
 }
@@ -110,10 +136,10 @@ function addExactSizes(row, file) {
 	];
 	const shiny = {};
 	for (const [key, dir, suffix, ext] of variants) {
-		const size = sizeObj(path.join(spriteSrc, dir, file + suffix + ext));
+		const size = sizeObj(dir, file + suffix + ext);
 		if (!size) continue;
 		row[key] = size; // (re)set from the resolved filename
-		const s = sizeObj(path.join(spriteSrc, dir + '-shiny', file + suffix + ext));
+		const s = sizeObj(dir + '-shiny', file + suffix + ext);
 		if (s && (s.w !== size.w || s.h !== size.h)) shiny[key] = s;
 	}
 	if (Object.keys(shiny).length) row.s = shiny;
@@ -184,10 +210,10 @@ exports.BattlePokemonSprites = {
 
 			const row = {num: species.num};
 			const nameId = formeName ? '' : species.name.toLowerCase().replace(/[^a-z0-9-]+/g, '').replace(/^-+|-+$/g, '');
-			const front = findSprite(spriteSrc, 'ani', spriteid, '', nameId);
-			const frontF = findSprite(spriteSrc, 'ani', spriteid, '-f', nameId);
-			const back = findSprite(spriteSrc, 'ani-back', spriteid, '', nameId);
-			const backF = findSprite(spriteSrc, 'ani-back', spriteid, '-f', nameId);
+			const front = findSprite('ani', spriteid, '', nameId);
+			const frontF = findSprite('ani', spriteid, '-f', nameId);
+			const back = findSprite('ani-back', spriteid, '', nameId);
+			const backF = findSprite('ani-back', spriteid, '-f', nameId);
 			if (front) row.front = front.size;
 			if (frontF) row.frontf = frontF.size;
 			if (back) row.back = back.size;
@@ -269,14 +295,14 @@ exports.BattlePokemonSprites = {
 }
 
 (async () => {
-	if (!spriteSrc) {
+	if (!manifest) {
 		try {
 			fs.unlinkSync('data/pokedex-mini.js');
 			fs.unlinkSync('data/pokedex-mini-bw.js');
 		} catch (e) {}
-		console.log('SKIPPED (no sprite set found: set SPRITE_SRC or put ani/ in play.pokemonshowdown.com/sprites)');
+		console.log('SKIPPED (no build-tools/sprite-sizes.json: run once with SPRITE_SRC set)');
 		return;
 	}
 	const {r2Count, psCount, fallbackCount} = await updateSizes();
-	console.log(`DONE (source: ${spriteSrc}; ${r2Count} species from R2 set, ${fallbackCount} reuse a parent forme's render, ${psCount} from upstream)`);
+	console.log(`DONE (source: ${spriteSrc || 'build-tools/sprite-sizes.json'}; ${r2Count} species from R2 set, ${fallbackCount} reuse a parent forme's render, ${psCount} from upstream)`);
 })();

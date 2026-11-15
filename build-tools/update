@@ -67,6 +67,8 @@ if (autoconfigRegex.test(configBuf)) {
 	configBuf += autoconfig;
 }
 fs.writeFileSync('config/config.js', configBuf);
+fs.rmSync('play.pokemonshowdown.com/config/config.js', {force: true});
+fs.writeFileSync('play.pokemonshowdown.com/config/config.js', configBuf);
 console.log("DONE");
 
 /*********************************************************

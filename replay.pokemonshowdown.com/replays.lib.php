@@ -66,7 +66,7 @@ class Replays {
 			if ($player[0] === '!') $player = substr($player, 1);
 		}
 
-		$res = $this->db->prepare("UPDATE replays SET views = views + 1 WHERE id = ? LIMIT 1");
+		$res = $this->db->prepare("UPDATE replays SET views = views + 1 WHERE id = ?");
 		$res->execute([$id]);
 
 		$replay['safe_inputlog'] = (
@@ -95,6 +95,48 @@ class Replays {
 		if (!$replay) return null;
 
 		return $replay;
+	}
+
+	function recent() {
+		$res = $this->db->prepare("SELECT uploadtime, id, format, players, rating FROM replays WHERE private = 0 ORDER BY uploadtime DESC LIMIT 51");
+		$res->execute();
+		return $this->listing($res->fetchAll());
+	}
+
+	function search($username, $format, $page, $byRating) {
+		if ($page < 1) $page = 1;
+		if ($page > 100) return [];
+		$userid = $this->toID($username);
+		$formatid = $this->toID($format);
+		if (!$userid && !$formatid) return $this->recent();
+
+		$where = ["private = 0"];
+		$params = [];
+		if ($userid) {
+			$where[] = "playerid = ?";
+			$params[] = $userid;
+		}
+		if ($formatid) {
+			$where[] = "formatid = ?";
+			$params[] = $formatid;
+		}
+		$order = ($byRating && $formatid && !$userid) ? "rating IS NULL, rating DESC, uploadtime DESC" : "uploadtime DESC";
+		$offset = 50 * ($page - 1);
+		$res = $this->db->prepare(
+			"SELECT uploadtime, id, format, players, rating FROM " . ($userid ? "replayplayers" : "replays") .
+			" WHERE " . implode(" AND ", $where) . " ORDER BY $order LIMIT 51 OFFSET $offset"
+		);
+		$res->execute($params);
+		return $this->listing($res->fetchAll());
+	}
+
+	function listing($rows) {
+		foreach ($rows as &$row) {
+			$row['players'] = array_map(fn($player) => ltrim($player, '!'), explode(',', $row['players']));
+			$row['uploadtime'] = (int)$row['uploadtime'];
+			$row['rating'] = $row['rating'] === null ? null : (int)$row['rating'];
+		}
+		return $rows;
 	}
 
 	function toID($name) {

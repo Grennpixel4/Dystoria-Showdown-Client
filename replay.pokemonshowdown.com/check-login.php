@@ -10,6 +10,8 @@
  * @license MIT
  */
 
+if (!file_exists(__DIR__ . '/../lib/ntbb-session.lib.php')) die('],');
+
 require '../lib/ntbb-session.lib.php';
 
 echo ']' . ($curuser['loggedin'] ? $curuser['userid'] : '') . ',';

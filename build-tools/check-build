@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+fail() {
+	echo "::error::$1"
+	exit 1
+}
+
+D=play.pokemonshowdown.com/data
+
+[ "$(grep -c usedMods build-tools/build-indexes)" -ge 2 ] || fail "mod pruning was removed from build-tools/build-indexes"
+
+size=$(wc -c < $D/teambuilder-tables.js)
+[ "$size" -lt 26000000 ] || fail "teambuilder-tables.js is $size bytes (mod pruning broken?)"
+
+grep -q 'gastly-dystoria' $D/pokedex-mini.js || fail "Dystoria sprite sizes missing from pokedex-mini.js"
+
+grep -q "host: 'server.dystorialab.org'" play.pokemonshowdown.com/config/config.js || fail "served config.js does not point at server.dystorialab.org"
+
+built=$(git -C caches/DH2 rev-parse HEAD)
+echo "client data built from server commit $built"
+if [ -n "${EXPECTED_SERVER_SHA:-}" ] && ! git -C caches/DH2 merge-base --is-ancestor "$EXPECTED_SERVER_SHA" "$built"; then
+	fail "expected server commit $EXPECTED_SERVER_SHA but built from $built"
+fi
