@@ -69,7 +69,14 @@ if (!fs.existsSync('./caches/DH2')) {
 	// keep an existing cache in sync with the server repo instead of silently reusing an old copy
 	child_process.execSync('git remote set-url origin ' + server_repo, {cwd: 'caches/DH2'});
 	child_process.execSync('git fetch origin', {cwd: 'caches/DH2', stdio: 'inherit'});
-	child_process.execSync('git reset --hard origin/main', {cwd: 'caches/DH2'});
+	// Only fast-forward if the cache has no local work. A hard reset here silently threw away
+	// uncommitted server fixes (the Z-A Mega data) on every build.
+	const cacheDirty = child_process.execSync('git status --porcelain', {cwd: 'caches/DH2', encoding: 'utf8'}).trim();
+	if (!cacheDirty) {
+		child_process.execSync('git merge --ff-only origin/main', {cwd: 'caches/DH2', stdio: 'inherit'});
+	} else {
+		process.stdout.write("\n  caches/DH2 has uncommitted changes, keeping them (not resetting). ");
+	}
 }
 
 child_process.execSync('npm run build', {cwd: 'caches/DH2'});
@@ -650,8 +657,33 @@ function buildTeambuilderTables() {
 		const tiers = [];
 		const items = [];
 		const formatSlices = {};
+		// Item ids a NatDex format unbans by name (Mega Stones, mainly). Filled inside the NatDex
+		// branch below and read by the item loop, so it has to live outside both.
+		const ndUnbannedItems = new Set();
 
 		if (isNatDex || (isPreDLC && genNum === 9.41) || (isSVDLC1 && genNum === 9.411)) {
+			// A forme that a NatDex format unbans is legal in that format even when the dex data
+			// still marks it `Future`/`Illegal` (the Z-A Megas). Without this the teambuilder
+			// greys out anything the unbanlist just made legal.
+			const ndUnbanned = new Set();
+			for (const format of Formats) {
+				if (!format.unbanlist || !format.mod || !format.mod.startsWith('gen' + genNum)) continue;
+				if (!(format.name || '').toLowerCase().includes('natdex') && !(format.ruleset || []).some(
+					r => typeof r === 'string' && r.toLowerCase().includes('natdex')
+				)) continue;
+				for (const entry of format.unbanlist) {
+					const species = Dex.mod('gen' + genNum).species.get(entry);
+					if (species.exists) ndUnbanned.add(species.id);
+					// Mega Stones are unbanned by name too. They need their own set: the item list
+					// below drops every `isNonstandard` item, so without this a legal Mega's stone
+					// is missing from the teambuilder and shows as Illegal.
+					const id = toID(entry);
+					if (Dex.mod('gen' + genNum).items.get(id).exists) ndUnbannedItems.add(id);
+				}
+			}
+			for (const id of ndUnbanned) {
+				if (overrideTier[id] === 'Illegal') overrideTier[id] = 'Untiered';
+			}
 			BattleTeambuilderTable['gen' + genNum + 'natdex'] = {};
 			BattleTeambuilderTable['gen' + genNum + 'natdex'].tiers = tiers;
 			BattleTeambuilderTable['gen' + genNum + 'natdex'].overrideTier = overrideTier;
@@ -780,16 +812,19 @@ function buildTeambuilderTables() {
 				continue;
 			}
 			if (item.isNonstandard && !isMetBattle) {
-				if (isNatDex) {
-					let curItem = item;
-					let curGen = genNum;
-					while (item.isNonstandard && curGen >= 7) {
-						curItem = Dex.forGen(curGen).items.get(item.id);
-						curGen--;
+				// an item a NatDex format explicitly unbans stays listed even if the dex still tags it
+				if (!(isNatDex && ndUnbannedItems.has(id))) {
+					if (isNatDex) {
+						let curItem = item;
+						let curGen = genNum;
+						while (item.isNonstandard && curGen >= 7) {
+							curItem = Dex.forGen(curGen).items.get(item.id);
+							curGen--;
+						}
+						if (curItem.isNonstandard) continue;
+					} else if (genNum !== 2) {
+						continue;
 					}
-					if (curItem.isNonstandard) continue;
-				} else if (genNum !== 2) {
-					continue;
 				}
 			}
 			if (isMetBattle) {
