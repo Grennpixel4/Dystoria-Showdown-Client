@@ -301,7 +301,10 @@ class BattleTooltips {
 					}
 				}
 			} else {
-				buf = this.showPokemonTooltip(pokemon);
+				// Your own Pokemon are yours to inspect: the server has already told the client
+				// their real stats and moveset (`battle.myPokemon`), so show them instead of the
+				// opponent-style "Spe 168 to 309 (before items/abilities/modifiers)" guess.
+				buf = this.showPokemonTooltip(pokemon, this.myServerPokemon(side, pokemon), false);
 			}
 			break;
 		}
@@ -323,6 +326,11 @@ class BattleTooltips {
 			}
 			if (side === this.battle.mySide.ally && this.battle.myAllyPokemon) {
 				serverPokemon = this.battle.myAllyPokemon[pokemonIndex];
+			}
+			if (!serverPokemon && pokemon) {
+				// the index disagreed with the request (a switch, a forced switch, Illusion);
+				// the ident is the same on both sides, so match on that instead
+				serverPokemon = this.myServerPokemon(side, pokemon);
 			}
 			if (!pokemon) return false;
 			buf = this.showPokemonTooltip(pokemon, serverPokemon, true);
@@ -764,6 +772,28 @@ class BattleTooltips {
 	}
 
 	/**
+	 * The server's own record of one of your Pokemon (stats, moveset, exact HP), or null.
+	 * `battle.myPokemon` is a flat list for your side and your ally's list is separate, and
+	 * the tooltip codes index into them by slot; when the index doesn't line up (a Pokemon
+	 * that just switched, Illusion) fall back to the ident, which is the same on both sides.
+	 */
+	myServerPokemon(side: Side, pokemon: Pokemon): ServerPokemon | null {
+		const battle = this.battle;
+		const isMine = side === battle.mySide;
+		const isAllys = battle.mySide && side === battle.mySide.ally;
+		if (!isMine && !isAllys) return null;
+		const list = isMine ? battle.myPokemon : battle.myAllyPokemon;
+		if (!list) return null;
+		if (pokemon.ident) {
+			for (const serverPokemon of list) {
+				if (serverPokemon?.ident && serverPokemon.ident === pokemon.ident) return serverPokemon;
+			}
+		}
+		const index = side.pokemon.indexOf(pokemon);
+		return list[index] || null;
+	}
+
+	/**
 	 * Needs either a Pokemon or a ServerPokemon, but note that neither
 	 * are guaranteed: If you hover over a possible switch-in that's
 	 * never been switched in before, you'll only have a ServerPokemon,
@@ -839,7 +869,7 @@ class BattleTooltips {
 			} else if (pokemon.maxhp === 48) {
 				exacthp = ' <small>(' + pokemon.hp + '/' + pokemon.maxhp + ' pixels)</small>';
 			}
-			text += '<p><small>HP:</small> ' + Pokemon.getHPText(pokemon, this.battle.reportExactHP) + exacthp + (pokemon.status ? ' <span class="status ' + pokemon.status + '">' + pokemon.status.toUpperCase() + '</span>' : '');
+			text += '<p><small>HP:</small> ' + Pokemon.getHPText(pokemon) + exacthp + (pokemon.status ? ' <span class="status ' + pokemon.status + '">' + pokemon.status.toUpperCase() + '</span>' : '');
 			if (clientPokemon) {
 				if (pokemon.status === 'tox') {
 					if (pokemon.ability === 'Poison Heal' || pokemon.ability === 'Magic Guard') {
@@ -2231,7 +2261,7 @@ class BattleTooltips {
 			} else if (itemName === 'Baseball Bat' && move.flags['contact']) {
 				value.itemModify(1.25);
 			} else if (itemName === 'Tie-Dye Band') {
-				if (this.pokemonHasType(value.pokemon, moveType)) {
+				if (this.pokemonHasType(pokemon, moveType)) {
 					value.itemModify(0.67);
 				} else {
 					value.itemModify(1.3);
