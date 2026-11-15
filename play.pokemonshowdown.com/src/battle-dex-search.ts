@@ -607,7 +607,7 @@ abstract class BattleTypedSearch<T extends SearchType> {
 
 	protected formatType: 'doubles' | 'bdsp' | 'bdspdoubles' | 'letsgo' | 'metronome' | 'natdex' | 'nfe' |
 	'ssdlc1' | 'ssdlc1doubles' | 'predlc' | 'predlcdoubles' | 'predlcnatdex' | 'svdlc1' | 'svdlc1doubles' |
-	'svdlc1natdex' | 'stadium' | 'lc' | 'dlc1' | 'dlc1doubles' | null = null;
+	'svdlc1natdex' | 'stadium' | 'lc' | null = null;
 
 	/**
 	 * Cached copy of what the results list would be with only base filters
@@ -642,7 +642,7 @@ abstract class BattleTypedSearch<T extends SearchType> {
 			for (const modid in (ClientMods)) {
 				for (const formatid in ClientMods[modid].formats) {
 					if (formatid === format || format.slice(4) === formatid) {
-						if (format.slice(4) === formatid) this.modFormat = formatid as ID;
+						if (format.slice(4) === formatid) this.modFormat = formatid;
 						mod = modid;
 						const formatTable = ClientMods[modid].formats[formatid];
 						if (mod && formatTable.teambuilderFormat) overrideFormat = toID(formatTable.teambuilderFormat);
@@ -1304,7 +1304,11 @@ class BattleAbilitySearch extends BattleTypedSearch<'ability'> {
 
 		if (species.isMega) {
 			abilitySet.unshift(['html', `Will be <strong>${species.abilities['0']}</strong> after Mega Evolving.`]);
+			// The Mega's own ability is legal on the set too: it is what the Pokemon has once it
+			// Mega Evolves, and the validator accepts it. Without this it lands in "Illegal".
+			const megaAbility = toID(species.abilities['0']);
 			species = dex.species.get(species.baseSpecies);
+			abilitySet.push(['ability', megaAbility]);
 		}
 		abilitySet.push(['ability', toID(species.abilities['0'])]);
 		if (species.abilities['1']) {
