@@ -1474,7 +1474,11 @@ class BattleMoveSearch extends BattleTypedSearch<'move'> {
 	}
 	private moveIsNotUseless(id: ID, species: Species, moves: string[], set: PokemonSet | null) {
 		const dex = this.dex;
+const itemid: ID = set ? toID(set.item) : '' as ID;
 
+// Dystoria custom moves (num 20001+) are never "usually useless"
+if ((BattleMovedex[id]?.num || 0) >= 20000) return true;
+		
 		let abilityid: ID = set ? toID(set.ability) : '' as ID;
 		const itemid: ID = set ? toID(set.item) : '' as ID;
 		
@@ -1688,8 +1692,7 @@ class BattleMoveSearch extends BattleTypedSearch<'move'> {
 		}
 
 		const move = dex.moves.get(id);
-		if (!move.exists) return true;
-		if (!BattleMovedex[id].exists) return true; //Flag custom moves as viable by default
+		if (!move.exists) return true; 
 		if ((move.status === 'slp' || id === 'yawn') && dex.gen === 9 && !this.formatType) {
 			return false;
 		}
