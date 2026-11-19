@@ -441,6 +441,12 @@ License: GPLv2
 	background: #E6E0AC url(../fx/weather-sandstorm.png) no-repeat scroll left top;
 	color: #554433;
 }
+.eeriefogweather {
+	background: linear-gradient(#9650E0, #9650E0), linear-gradient(#9650E0, #9650E0), url(../fx/weather-strongwind.png) no-repeat scroll left top #9650E0;
+	background-blend-mode: color, multiply, normal;
+	color: #F3E8FF;
+	text-shadow: #2A1245 1px 1px 0, #2A1245 1px -1px 0, #2A1245 -1px 1px 0, #2A1245 -1px -1px 0;
+}
 .snowweather,
 .snowscapeweather,
 .hailweather {
