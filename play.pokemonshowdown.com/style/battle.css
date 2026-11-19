@@ -442,8 +442,8 @@ License: GPLv2
 	color: #554433;
 }
 .eeriefogweather {
-	background: linear-gradient(#9650E0, #9650E0), linear-gradient(#9650E0, #9650E0), url(../fx/weather-strongwind.png) no-repeat scroll left top #9650E0;
-	background-blend-mode: color, multiply, normal;
+	background: url(../fx/weather-strongwind.png) no-repeat left top, url(../fx/weather-strongwind.png) no-repeat left top, linear-gradient(#A855F7, #A855F7);
+	background-blend-mode: multiply, multiply, normal;
 	color: #F3E8FF;
 	text-shadow: #2A1245 1px 1px 0, #2A1245 1px -1px 0, #2A1245 -1px 1px 0, #2A1245 -1px -1px 0;
 }
