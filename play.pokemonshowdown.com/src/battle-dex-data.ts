@@ -1235,6 +1235,8 @@ class Move implements Effect {
 	readonly isMax: boolean | string;
 	readonly maxMove: {basePower: number};
 	readonly ohko: true | TypeName | null;
+	/** fixed damage, e.g. Seismic Toss; used by the move tooltip's effectiveness lines */
+	readonly damage?: number | 'level' | false | null;
 	readonly recoil: number[] | null;
 	readonly heal: number[] | null;
 	readonly multihit: number[] | number | null;
@@ -1273,6 +1275,7 @@ class Move implements Effect {
 		this.isZ = data.isZ || '';
 		this.zMove = data.zMove || {};
 		this.ohko = data.ohko || null;
+		this.damage = data.damage;
 		this.recoil = data.recoil || null;
 		this.heal = data.heal || null;
 		this.multihit = data.multihit || null;
