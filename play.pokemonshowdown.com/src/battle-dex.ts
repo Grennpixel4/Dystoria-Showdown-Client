@@ -1004,7 +1004,7 @@ const Dex = new class implements ModdedDex {
 	getItemIcon(item: any, mod: string = '') {
 		let num = 0;
 		if (typeof item === 'string' && exports.BattleItems) item = exports.BattleItems[toID(item)];
-		if (this.r2Items.includes(item.id)) return `background:transparent url(${this.r2ResourcePrefix}sprites/items/${item.id}.png) no-repeat center`;
+		if (this.r2Items.includes(item.id)) return `background:transparent url(${this.r2ResourcePrefix}sprites/items/${item.id}.png) no-repeat center / 24px 24px`;
 		mod = this.getSpriteMod(mod, item.id, 'items');
 		if (mod) return `background:transparent url(${this.getModBase(mod)}sprites/items/${item.id}.png) no-repeat center`;
 		if (item?.spritenum) num = item.spritenum;
