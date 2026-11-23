@@ -189,6 +189,8 @@ const Dex = new class implements ModdedDex {
 	// layout, i.e. https://sprites.dystorialab.org/<mod>/sprites/<front|back|icons|...>/<id>.png
 	readonly r2ResourcePrefix = 'https://sprites.dystorialab.org/';
 	readonly r2Mods: ReadonlyArray<string> = ['dystoria'];
+	// Item icons uploaded to R2 at sprites/items/<id>.png. Add an id here after uploading its icon.
+	readonly r2Items: ReadonlyArray<string> = ['dusknoite', 'hauntedrock'];
 
 	/**
 	 * Base URL for a mod's assets; append `sprites/<folder>/<id>.png` or `audio/cries/<id>.mp3`.
@@ -1002,8 +1004,9 @@ const Dex = new class implements ModdedDex {
 	getItemIcon(item: any, mod: string = '') {
 		let num = 0;
 		if (typeof item === 'string' && exports.BattleItems) item = exports.BattleItems[toID(item)];
+		if (this.r2Items.includes(item.id)) return `background:transparent url(${this.r2ResourcePrefix}sprites/items/${item.id}.png) no-repeat center`;
 		mod = this.getSpriteMod(mod, item.id, 'items');
-		if (mod) return `background:transparent url(${this.getModBase(mod)}sprites/items/${item.id}.png) no-repeat`;
+		if (mod) return `background:transparent url(${this.getModBase(mod)}sprites/items/${item.id}.png) no-repeat center`;
 		if (item?.spritenum) num = item.spritenum;
 
 		let top = Math.floor(num / 16) * 24;
