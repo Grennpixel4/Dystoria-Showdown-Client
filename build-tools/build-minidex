@@ -170,6 +170,122 @@ function readScaleOverrides() {
 	return out;
 }
 
+/**
+ * Sprite sizing: each render gets a multiplier (`sc`) that makes its on-screen size proportional to the same
+ * Pokemon's sprite on Pokemon Showdown. Our renders all have similar dimensions, so without it Joltik is as big as Wailord.
+ *
+ * sprite-reference.json = {"fakemon": "pokemon to be the same size as"}
+ * sprite-scale.json     = {"pokemon": exact multiplier}, which replaces the calculated one
+ * showdown-sizes.json   = saved copy of Showdown's front sprite sizes (refresh with UPDATE_SHOWDOWN_SIZES=1)
+ */
+// Raise or lower this to resize every one of our sprites at once (1.2 = 20% bigger).
+const SIZE_MULTIPLIER = 1;
+// Showdown size / our size for the typical sprite. Fixed so that adding sprites never resizes existing ones.
+const SIZE_RATIO = 0.376;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2.2;
+const SHOWDOWN_SIZES_FILE = path.resolve(__dirname, 'showdown-sizes.json');
+
+const area = size => Math.sqrt(size.w * size.h);
+
+function getShowdownSizes(upstream) {
+	const exists = fs.existsSync(SHOWDOWN_SIZES_FILE);
+	if (exists && !process.env.UPDATE_SHOWDOWN_SIZES) return readJsonMap('showdown-sizes.json');
+
+	const out = {};
+	for (const id of Object.keys(upstream).sort()) {
+		const front = upstream[id].front;
+		if (front && id !== 'substitute') out[id] = [front.w, front.h];
+	}
+	if (!Object.keys(out).length) return readJsonMap('showdown-sizes.json');
+	const lines = Object.entries(out).map(([id, size]) => `\t${JSON.stringify(id)}: [${size.join(', ')}]`);
+	fs.writeFileSync(SHOWDOWN_SIZES_FILE, `{\n${lines.join(',\n')}\n}\n`);
+	return out;
+}
+
+function applyScales(rows, rowById, artParents, showdownSizes) {
+	const overrides = readScaleOverrides();
+	const references = {};
+	for (const [key, value] of Object.entries(readJsonMap('sprite-reference.json'))) {
+		references[toID(key)] = toID(value);
+	}
+	const entryById = new Map(rows.map(entry => [entry.id, entry]));
+	// Many of Showdown's Gen 9 Mega sprites are fitted into a 90px box, so their size says nothing about the Pokemon
+	showdownSizes = Object.fromEntries(Object.entries(showdownSizes).filter(([id, size]) => {
+		const species = entryById.get(id)?.species;
+		const longest = Math.max(...size);
+		return !(species?.isMega && species.gen === 9 && longest >= 89 && longest <= 90);
+	}));
+	const scales = new Map();
+	const resolving = new Set();
+	const unsized = [];
+	const badReferences = [];
+
+	const isOurs = row => !!(row && !row.ps && row.front);
+
+	/** On-screen size of a Pokemon, in the same units as `area(row.front) * sc` */
+	function sizeOf(id) {
+		const row = rowById.get(id);
+		if (isOurs(row)) {
+			const scale = scaleOf(id);
+			return scale && area(row.front) * scale;
+		}
+		const size = showdownSizes[id];
+		return size && area({w: size[0], h: size[1]}) / SIZE_RATIO;
+	}
+
+	function scaleOf(id) {
+		if (scales.has(id)) return scales.get(id);
+		if (resolving.has(id)) return null;
+		resolving.add(id);
+
+		const row = rowById.get(id);
+		const clamp = value => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+		const matching = targetId => {
+			const size = targetId !== id && sizeOf(targetId);
+			return size ? clamp(size / area(row.front)) : null;
+		};
+
+		let scale = overrides[id] || null;
+		if (!scale && references[id]) {
+			scale = matching(references[id]);
+			if (!scale) badReferences.push(`${id} -> ${references[id]}`);
+		}
+		// a forme drawn with another forme's art is sized the same as it
+		if (!scale && artParents.has(id)) scale = scaleOf(artParents.get(id));
+		if (!scale && showdownSizes[id]) {
+			const [w, h] = showdownSizes[id];
+			scale = clamp(area({w, h}) / SIZE_RATIO / area(row.front));
+		}
+		if (!scale) {
+			const baseId = toID(entryById.get(id).species.baseSpecies);
+			if (baseId !== id) scale = matching(baseId);
+		}
+
+		resolving.delete(id);
+		scales.set(id, scale);
+		return scale;
+	}
+
+	for (const {id, row} of rows) {
+		if (!isOurs(row)) continue;
+		const scale = scaleOf(id);
+		if (!scale) unsized.push(id);
+		const rounded = Math.round((scale || 1) * SIZE_MULTIPLIER * 100) / 100;
+		if (rounded !== 1) row.sc = rounded;
+	}
+
+	for (const id in references) {
+		if (!isOurs(rowById.get(id))) badReferences.push(`${id} (no render of ours to resize)`);
+	}
+	if (badReferences.length) {
+		console.log(`\nWarning: unusable entries in sprite-reference.json: ${[...new Set(badReferences)].join(', ')}`);
+	}
+	if (unsized.length) {
+		console.log(`\nWarning: ${unsized.length} sprites have no size to copy; add them to build-tools/sprite-reference.json:\n${unsized.join(', ')}`);
+	}
+}
+
 function rowToString(id, row) {
 	return `\t${id}:` + JSON.stringify(row).replace(/"(\w+)":/g, '$1:') + `,\n`;
 }
@@ -237,6 +353,7 @@ exports.BattlePokemonSprites = {
 	// Reuse the closest parent's R2 render instead of falling back to a blank/placeholder: trim trailing
 	// "-segments" off the spriteid (tatsugiri-curly-mega -> tatsugiri-curly -> tatsugiri), then the base species.
 	let fallbackCount = 0;
+	const artParents = new Map();
 	const hasArt = r => r && (r.front || r.back);
 	for (const {id, row, spriteid, species} of rows) {
 		if (hasArt(row)) continue;
@@ -249,6 +366,7 @@ exports.BattlePokemonSprites = {
 			if (!hasArt(parent) || parent.ps) continue;
 			const fallbackRow = {};
 			for (const key in parent) if (key !== 'num') fallbackRow[key] = parent[key];
+			artParents.set(id, parentId);
 			// the file belongs to the parent: use its filename
 			const parentRow = rows.find(r => r.id === parentId);
 			fallbackRow.sid = parent.sid || parentRow.spriteid;
@@ -271,14 +389,13 @@ exports.BattlePokemonSprites = {
 		for (const key of Object.keys(row)) if (key !== 'num') delete row[key];
 		for (const key in target) if (key !== 'num') row[key] = target[key];
 		row.sid = target.sid || targetEntry.spriteid;
+		artParents.set(id, targetId);
 		aliasCount++;
 	}
 	fallbackCount += aliasCount;
 
-	const scaleOverrides = readScaleOverrides();
+	applyScales(rows, rowById, artParents, getShowdownSizes(upstream));
 	for (const {id, row} of rows) {
-		const scale = scaleOverrides[id];
-		if (scale && scale !== 1 && hasArt(row) && !row.ps) row.sc = scale;
 		buf += rowToString(id, row);
 	}
 
